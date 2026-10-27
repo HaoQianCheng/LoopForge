@@ -36,3 +36,40 @@ test('GitLab credentials are independent, redacted and verified as identity only
     expect((await page.request.put(credentials,{data:{gitLabTokenClear:true,gitLabBaseUrl:''}})).ok()).toBe(true);
   }
 });
+
+
+test('project repository input accepts and saves a configured GitLab URL',async({page})=>{
+  await signInUnconfigured(page);
+  await expect(page.locator('#aiAssistant .ai-compose-input')).toBeEnabled();
+  const {user}=await page.request.get('/api/auth/current').then(r=>r.json());
+  expect(!!user.gitLabTokenConfigured).toBe(false);
+  const credentials=`/api/users/${user.id}/credentials`;
+  const projectId='e2e-gitlab-repository';
+  let repositoryId;
+  try{
+    expect((await page.request.put(credentials,{data:{gitLabBaseUrl:'https://gitlab.example.com',gitLabToken:'e2e-inert-gitlab-token'}})).ok()).toBe(true);
+    const existing=await page.request.get(`/api/projects/${projectId}`);
+    if(existing.status()===404)expect((await page.request.post('/api/projects',{data:{id:projectId,key:'E2GL',name:'E2E GitLab repository',ownerId:user.id}})).ok()).toBe(true);
+    await page.reload();
+    await page.locator('#projectSwitcher').selectOption(projectId);
+    await page.goto('/#/projects');
+    await page.locator('#addRepoDraft').click();
+    const input=page.locator('[data-r="repoUrl"]');
+    await expect(input).toHaveAttribute('placeholder',/GitHub.*GitLab/);
+    await input.fill('https://gitlab.example.com/team/sub/repository.git');
+    await input.press('Tab');
+    await expect(page.locator('[data-r="name"]')).toHaveValue('repository');
+    const pending=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/repositories');
+    await page.locator('[data-save-repo]').click();
+    const response=await pending;expect(response.ok()).toBe(true);
+    const saved=await response.json();repositoryId=saved.id;
+    expect(saved.provider).toBe('gitlab');
+    expect(saved.cloneUrl).toBe('https://gitlab.example.com/team/sub/repository.git');
+    expect(saved.gongfengProjectId).toBe('gitlab:https://gitlab.example.com/team/sub/repository');
+    await page.reload();
+    await expect(page.locator(`a.repo-cell-link[href="${saved.webUrl}"]`).first()).toBeVisible();
+  }finally{
+    if(repositoryId)expect((await page.request.delete(`/api/repositories?id=${encodeURIComponent(repositoryId)}`)).ok()).toBe(true);
+    expect((await page.request.put(credentials,{data:{gitLabTokenClear:true,gitLabBaseUrl:''}})).ok()).toBe(true);
+  }
+});

@@ -60,7 +60,7 @@ function repoRowWebHref(r){const info=parseGongfengRepoURL(r?.webUrl||r?.repoUrl
 function repoColValue(r,key){if(key==='name')return repoRowName(r);if(key==='repoUrl')return repoRowWebHref(r)||repoRowLink(r);if(key==='defaultBranch')return r.defaultBranch||'main';return String(r.integrateBranch||'').trim()}
 async function persistRepoRow(row,projectId){const url=String(row.repoUrl||row.gongfengProjectId||'').trim();if(!url){toast('请填写GitHub 或已配置的 GitLab 仓库地址');return null}if(!parseGongfengRepoURL(url)&&!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url)){toast('Git 仓库链接无法识别，请粘贴 GitHub 或已配置的 GitLab 仓库链接');return null}if(!projectId||!(state.data.projects||[]).some(p=>p.id===projectId)){toast('请先保存项目');return null}const payload=repoPayloadFromRow(row,projectId);delete payload.gitToken;if(!payload.id)delete payload.id;const repo=await api('/api/repositories',{method:payload.id?'PUT':'POST',body:JSON.stringify(payload)});const ri=(state.data.repositories||[]).findIndex(x=>x.id===repo.id);if(ri>=0)state.data.repositories[ri]=repo;else(state.data.repositories||(state.data.repositories=[])).push(repo);return repo}
 function repoAdminRowHTML(r,i){
-  const cols=[{key:'name',ph:'项目名称'},{key:'repoUrl',ph:'GitHub Web / SSH / clone URL'},{key:'defaultBranch',ph:'主分支'},{key:'integrateBranch',ph:'集成分支（可选）'}];
+  const cols=[{key:'name',ph:'项目名称'},{key:'repoUrl',ph:lfT('GitHub / GitLab 仓库地址','GitHub / GitLab repository URL')},{key:'defaultBranch',ph:'主分支'},{key:'integrateBranch',ph:'集成分支（可选）'}];
   const editing=!!r.editing;
   const href=repoRowWebHref(r);
   const cells=cols.map(col=>{
